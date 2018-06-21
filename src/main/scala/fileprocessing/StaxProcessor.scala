@@ -2,8 +2,9 @@ package fileprocessing
 
 import java.io.InputStream
 
+import javax.xml.namespace.QName
 import javax.xml.stream.events.XMLEvent
-import javax.xml.stream.{XMLEventReader, XMLInputFactory}
+import javax.xml.stream.{XMLEventReader, XMLInputFactory, XMLStreamConstants}
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
@@ -98,31 +99,92 @@ class StaxTableDataProcessor(inputStream: InputStream)  {
   xif.setProperty(XMLInputFactory.IS_VALIDATING, false)
 
 
-  val eventReader = xif.createXMLStreamReader(inputStream)
+  val eventReader = xif.createXMLEventReader(inputStream)
   /**
     *
     * @return - Sheet name and row data from sheet excluding empty rows
     */
   def getNextSheet(): (String, List[List[String]])  = {
+
+  var sheetName: String = ""
     var rowData: ListBuffer[ListBuffer[String]] = ListBuffer()
     var row: ListBuffer[String] = ListBuffer()
-    while(eventReader.hasNext()){
-      var data = eventReader.getText
-      if(data.isStartElement && data.getValue){
-
-      }
-
+    while (eventReader.hasNext()) {
+        val event = eventReader.nextEvent()
+     event.isStartElement
+        match {
+          case true =>
+            if(event.asStartElement().getName.getLocalPart == "table:table")
+              sheetName = event.asStartElement().getAttributeByName(new QName("name")).getValue
+//          case true if event.asStartElement().getName.getLocalPart == "table:table-row" =>
+//            var rowBuffer = parseTableRow()
+//            rowData ++ rowBuffer
+          case false =>
+        }
+//          if(event.isStartElement)
+//            if (event.asStartElement().getName.getLocalPart == "table:table") {
+//              sheetName = event.asStartElement().getAttributeByName(new QName("name")).getValue
+////                  val it = event.asStartElement().getAttributes()
+////              while(it.hasNext)
+////                println(it.next().)
+//          } else if(event.asStartElement().getName.getLocalPart == "table:table-row")
     }
-
-
-
-    ("", List(List()))
+    (sheetName, List(List()))
   }
+
+  def parseTableRow(): ListBuffer[String] ={
+    var buffer: ListBuffer[String] = ListBuffer()
+    var event = eventReader.nextEvent()
+    while(event.isEndElement && (event.asEndElement().getName.getLocalPart != "table:table-row")){
+      if(event.isStartElement && (event.asStartElement().getName.getLocalPart == "table:table-cell")){
+        var value = event.asStartElement().getAttributeByName(new QName("value"))
+        if(value != null){
+          buffer ++ value.getValue
+        }
+      }
+      event = eventReader.nextEvent()
+    }
+    buffer
+  }
+
+//  def printit(): Unit = {
+//    while(eventReader.hasNext) {
+//      val thenextEvent = eventReader.nextTag()
+//      thenextEvent match {
+//        case XMLStreamConstants.CDATA =>
+//          print("CDATA" + )
+//      }
+//      println(eventReader.getText)
+//    }
+//  }
 
   def printit(): Unit = {
     while(eventReader.hasNext) {
       val thenextEvent = eventReader.nextEvent()
-      println(thenextEvent.toString)
+      if(thenextEvent.getEventType > 0)
+      println(getElement(thenextEvent) + " --- " + thenextEvent.toString)
     }
+  }
+
+  def matchType(i: Int) = i match {
+    case XMLStreamConstants.START_ELEMENT=> s"START ELEMENT/${i}"
+    case XMLStreamConstants.END_ELEMENT=> s"END_ELEMENT/${i}"
+    case XMLStreamConstants.SPACE=> s"SPACE/${i}"
+    case XMLStreamConstants.CHARACTERS=> s"CHARACTERS/${i}"
+    case XMLStreamConstants.PROCESSING_INSTRUCTION=> s"PROCESSING_INSTRUCTION/${i}"
+    case XMLStreamConstants.CDATA=> s"CDATA/${i}"
+    case XMLStreamConstants.COMMENT=> s"COMMENT/${i}"
+    case XMLStreamConstants.ENTITY_REFERENCE=> s"ENTITY_REFERENCE/${i}"
+    case XMLStreamConstants.START_DOCUMENT=> s"START_DOCUMENT/${i}"
+    case _ => s"IDFK/${i}"
+  }
+
+  def getElement(xmlEvent: XMLEvent) = xmlEvent.getEventType match {
+    case XMLStreamConstants.START_ELEMENT=> Some(xmlEvent.asStartElement())
+    case XMLStreamConstants.END_ELEMENT=> Some(xmlEvent.asEndElement())
+    case XMLStreamConstants.SPACE=> Some(xmlEvent.asCharacters())
+    case XMLStreamConstants.CHARACTERS=> Some(xmlEvent.asCharacters())
+    case XMLStreamConstants.CDATA=> Some(xmlEvent.asCharacters())
+    case _ => None
   }
 }

@@ -44,8 +44,9 @@ class StaxTableDataProcessorTest extends WordSpec with Matchers {
       val inputXml: String = testFile1
       //val expectedResult = testFile1Result
       val processor = new StaxTableDataProcessor(new ByteArrayInputStream(inputXml.getBytes("utf-8")))
-      val result = processor.printit()
-      //result._2.size shouldBe 2
+      val result = processor.getNextSheet()
+      result._1 shouldBe "Other_Grants_V3"
+      result._2.size shouldBe 2
     }
 
   }
