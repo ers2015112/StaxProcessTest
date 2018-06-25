@@ -8,6 +8,7 @@ import javax.xml.stream.{XMLEventReader, XMLInputFactory, XMLStreamConstants}
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
+import scala.util.Try
 
 
 class StaxProcessor(inputStream: InputStream)  extends Iterator[String] {
@@ -104,7 +105,157 @@ class StaxTableDataProcessor(inputStream: InputStream)  {
     *
     * @return - Sheet name and row data from sheet excluding empty rows
     */
-  def getNextSheet(): (String, List[List[String]])  = {
+  def getSheets() = {
+    var sheetName: String = ""
+    var sheetMap: mutable.HashMap[String, List[List[String]]] = mutable.HashMap()
+    var rowData: ListBuffer[List[String]] = ListBuffer()
+    var row: ListBuffer[String] = ListBuffer()
+    var inTable = false
+    var inRow = false
+    var inCell = false
+    var inText = false
+    var inData = false
+    var inRepeatedCols = false
+    var sheetRowCount = 0
+
+    while(eventReader.hasNext) {
+      val event: XMLEvent = eventReader.nextEvent()
+      event.getEventType match {
+        case XMLStreamConstants.START_ELEMENT =>
+          val qName = event.asStartElement().getName().getLocalPart
+          qName match {
+            case "table:table" =>
+//              println("Start table")
+              inTable = true
+              val tempName = Try(event.asStartElement().getAttributeByName(new QName("name")).getValue)
+              if(tempName.isSuccess)
+                sheetName = tempName.get
+            case "table:table-row" =>
+ //             println("Start row")
+              sheetRowCount += 1
+              inRow = true
+            case "table:table-cell" =>
+  //            println("Start cell")
+              if(event.asStartElement().getAttributeByName(new QName("number-columns-repeated")) != null)
+                  {
+                    val numRepeatedCols = event.asStartElement().getAttributeByName(new QName("number-columns-repeated")).getValue().toInt
+                    if(numRepeatedCols < 100)
+                      for(i <- 1 to numRepeatedCols)
+                        row += ""
+                    inCell = false
+                  }
+              inCell = true
+            case "text:p" =>{
+  //            println("Start text element")
+              inText = true
+              inData = false
+              }
+            case _ =>
+          }
+        case XMLStreamConstants.CHARACTERS =>
+          val characters = event.asCharacters()
+//          print("Incharacters " + inCell + " " + inText + " cr " + inRepeatedCols)
+
+          if(inRow) {
+            if(inCell && inText) {
+                inData = true
+                if(sheetRowCount > 9)
+                  row += characters.getData
+//              inCell = false
+            }
+          }
+        case XMLStreamConstants.END_ELEMENT =>
+          val qName = event.asEndElement().getName().getLocalPart
+          qName match {
+            case "table:table" =>
+              sheetMap.put(sheetName, rowData.toList)
+              sheetRowCount = 0
+              rowData = ListBuffer()
+              inTable = false
+            case "table:table-row" =>
+              if(!row.isEmpty)
+                rowData += row.toList
+              row = ListBuffer()
+              inRow = false
+            case "text:p" =>
+              inText = false
+              println("In Data " + inData + " rowCount " + sheetRowCount)
+              if(!inData) {
+               println("Adding empty cell")
+                row += ""
+              }
+            case "table:table-cell" =>
+              inCell = false
+            case _ =>
+          }
+        case _ =>
+      }
+    }
+    sheetMap.toMap
+  }
+
+  def getNextSheet() = {
+    var sheetName: String = ""
+    var rowData: ListBuffer[List[String]] = ListBuffer()
+    var row: ListBuffer[String] = ListBuffer()
+    var inTable = false
+    var inRow = false
+    var inCell = false
+    var inRepeatedCols = false
+
+    while(eventReader.hasNext) {
+      val event: XMLEvent = eventReader.nextEvent()
+      event.getEventType match {
+        case XMLStreamConstants.START_ELEMENT =>
+          val qName = event.asStartElement().getName().getLocalPart
+          qName match {
+            case "table:table" =>
+                  println("Start table")
+              inTable = true
+              val tempName = Try(event.asStartElement().getAttributeByName(new QName("name")).getValue)
+              if(tempName.isSuccess)
+                sheetName = tempName.get
+            case "table:table-row" =>
+                      println("Start row")
+              inRow = true
+            case "table:table-cell" =>
+                   println("Start cell")
+              if(event.asStartElement().getAttributeByName(new QName("number-columns-repeated")) != null)
+                inRepeatedCols = true
+              inCell = true
+            case _ =>
+          }
+        case XMLStreamConstants.CHARACTERS =>
+          val characters = event.asCharacters()
+          if(inRow) {
+            if(inCell) {
+              if(!inRepeatedCols) {
+                println("Cell Value " + characters.getData)
+                row += characters.getData
+                println(row.toString())
+              }
+              else
+                inRepeatedCols = false
+              inCell = false
+            }
+          }
+        case XMLStreamConstants.END_ELEMENT =>
+          val qName = event.asEndElement().getName().getLocalPart
+          qName match {
+            case "table:table" => inTable = false
+            case "table:table-row" =>
+              rowData += row.toList
+              row = ListBuffer()
+              inRow = false
+            case _ =>
+          }
+        case _ =>
+      }
+    }
+    (sheetName, rowData.toList)
+  }
+
+  def getNextSheetOld(): (String, List[List[String]])  = {
 
   var sheetName: String = ""
     var rowData: ListBuffer[ListBuffer[String]] = ListBuffer()
@@ -164,6 +315,58 @@ class StaxTableDataProcessor(inputStream: InputStream)  {
       if(thenextEvent.getEventType > 0)
       println(getElement(thenextEvent) + " --- " + thenextEvent.toString)
     }
+  }
+
+
+
+  def printTable(): Unit = {
+    var inTable = false
+    var inRow = false
+    var inCell = false
+    var inRepeatedCols = false
+
+    while(eventReader.hasNext) {
+      val event: XMLEvent = eventReader.nextEvent()
+        event.getEventType match {
+          case XMLStreamConstants.START_ELEMENT =>
+            val qName = event.asStartElement().getName().getLocalPart
+            qName match {
+              case "table:table" =>
+   //             println("Start table")
+                inTable = true
+                print(event.asStartElement().toString)
+              case "table:table-row" =>
+ //               println("Start row")
+                inRow = true
+              case "table:table-cell" =>
+ //               println("Start cell")
+                if(event.asStartElement().getAttributeByName(new QName("number-columns-repeated")) != null)
+                  inRepeatedCols = true
+                inCell = true
+              case _ =>
+            }
+          case XMLStreamConstants.CHARACTERS =>
+            val characters = event.asCharacters()
+            if(inRow) {
+              if(inCell) {
+                if(!inRepeatedCols)
+                  println("Cell Value " + characters.getData)
+                else
+                  inRepeatedCols = false
+                inCell = false
+              }
+            }
+          case XMLStreamConstants.END_ELEMENT =>
+            val qName = event.asEndElement().getName().getLocalPart
+            qName match {
+              case "table:table" => inTable = false
+              case "table:table-row" => inTable = false
+              case _ =>
+            }
+          case _ =>
+        }
+    }
+
   }
 
   def matchType(i: Int) = i match {
