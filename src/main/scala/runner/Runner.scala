@@ -19,7 +19,7 @@ object Runner {
 //    val stxEither = stxList.map((x) => DataParser.parse(x, "ERSTest.ods"))
 //    //stxEither.foreach(println(_))
 //    println("List size is " + stxEither.size)
-    val stxProc: StaxTableDataProcessor = new StaxTableDataProcessor(FileProcessor.getOdsStream("ERSIssue2.ods"))
+    val stxProc: StaxTableDataProcessor = new StaxTableDataProcessor(FileProcessor.getOdsStream("ERSIssue.ods"))
     val res = stxProc.getSheets()
     //res.foreach((x) => println("**************" + x.toString()))
     println("Map size" + res.size)

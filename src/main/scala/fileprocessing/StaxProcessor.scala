@@ -140,8 +140,11 @@ class StaxTableDataProcessor(inputStream: InputStream)  {
                   {
                     val numRepeatedCols = event.asStartElement().getAttributeByName(new QName("number-columns-repeated")).getValue().toInt
                     if(numRepeatedCols < 100)
-                      for(i <- 1 to numRepeatedCols)
-                        row += ""
+                      if(sheetRowCount > 9)
+                        for(i <- 1 to numRepeatedCols)
+                          row += ""
+                      else
+                        row += "HEADER"
                     inCell = false
                   }
               inCell = true
@@ -160,7 +163,9 @@ class StaxTableDataProcessor(inputStream: InputStream)  {
             if(inCell && inText) {
                 inData = true
                 if(sheetRowCount > 9)
-                  row += characters.getData
+                  row += characters.getData.trim
+                else
+                  row += "HEADER"
 //              inCell = false
             }
           }
@@ -173,13 +178,15 @@ class StaxTableDataProcessor(inputStream: InputStream)  {
               rowData = ListBuffer()
               inTable = false
             case "table:table-row" =>
-              if(!row.isEmpty)
+           //   println("**Row " + row.toList.toString())
+           //   println("** " + row.toList.filter(_ != "").toString())
+              if(!row.toList.filter(_ != "").isEmpty)
                 rowData += row.toList
               row = ListBuffer()
               inRow = false
             case "text:p" =>
               inText = false
-              println("In Data " + inData + " rowCount " + sheetRowCount)
+  //            println("In Data " + inData + " rowCount " + sheetRowCount)
               if(!inData) {
                println("Adding empty cell")
                 row += ""
@@ -244,7 +251,10 @@ class StaxTableDataProcessor(inputStream: InputStream)  {
           qName match {
             case "table:table" => inTable = false
             case "table:table-row" =>
-              rowData += row.toList
+              println("**Row " + row.toList.toString())
+              println("** " + row.toList.filter(_ != "").toString())
+              if(!row.toList.filter(_ != "").isEmpty)
+                rowData += row.toList
               row = ListBuffer()
               inRow = false
             case _ =>
